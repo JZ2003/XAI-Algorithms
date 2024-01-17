@@ -3,66 +3,44 @@ from collections import defaultdict
 
 class NNF:
     def __init__(self) -> None:
-        pass
-    
+        ...
+
+    # @classmethod
+    # def from_string(cls,encoded_str:str) -> 'NNF':
+        
     def __mul__(self,RHS:'NNF') -> 'AND': #AND
-        if isinstance(self,AND) and isinstance(RHS,AND):
-            return AND((*self.subs,*RHS.subs))
-        elif isinstance(self,AND):
-            return AND((*self.subs,RHS))
-        elif isinstance(RHS,AND):
-            return AND((self,*RHS.subs))
-        else:
-            return AND((self,RHS))
+        ...
 
     def __add__(self,RHS:'NNF') -> 'OR': #OR
-        if isinstance(self,OR) and isinstance(RHS,OR):
-            return OR((*self.subs,*RHS.subs))
-        elif isinstance(self,OR):
-            return OR((*self.subs,RHS))
-        elif isinstance(RHS,OR):
-            return OR((self,*RHS.subs))
-        else:
-            return OR((self,RHS))
-
-    def iter_var_and_states(self) -> dict[str, set[tuple[int,bool]]]:
-        dictionary = defaultdict(set)
-        def _iter_var_and_states(formula:'NNF',dictionary:dict) -> None:
-            if isinstance(formula,Var):
-                dictionary[formula.name].add((formula.state,formula.negated))
-            else: #AND or OR
-                for sub in formula.subs:
-                    _iter_var_and_states(sub,dictionary)
-        _iter_var_and_states(self,dictionary)
-        return dictionary
+        ...
 
     def satisfied_by(self, world:dict[str,int]) -> bool:
-        '''Determine if the NNF is satisfied by a world'''
+        '''
+        Determine if the NNF is satisfied by a world.
+        A world is represented as a dictionary[varName: state].
+        '''
+        return self._satisfied_by(world)
 
-        def _satisfied_by(formula:'NNF',world:dict[str,int]) -> bool:
-            if isinstance(formula, Var):
-                name, state, negated = formula.name, formula.state, formula.negated
-                if name not in world:
-                    raise ValueError("The world has different set of variables than the NNF")
-                else:
-                    characteristic:int = world[name]
-                    if not negated and characteristic == state:
-                        return True
-                    elif negated and characteristic != state:
-                        return True
-                    else:
-                        return False
-            elif isinstance(formula, AND):
-                return all(_satisfied_by(sub,world) for sub in formula.subs)
-            else: # OR case
-                return any(_satisfied_by(sub,world) for sub in formula.subs)
-                
-        return _satisfied_by(self, world)
+    def iter_var_and_states(self) -> dict[str, set[tuple[int,bool]]]:
+        '''
+        Return a dictionary that lists all the variables and states that occur 
+        in a NNF. dict[varName:(state,negated)]
+        '''
+        dictionary = defaultdict(set)
+        self._iter_var_and_states(dictionary)
+        return dictionary
+
+    def or_decomposable(self) -> bool:
+        '''
+        Determines whether the NNF is or_decomposable.
+        A NNF is or_decomposable iff all disjuncts in it don't share variables.
+        '''
+        return self._or_decomposable()
 
     def monotone(self) -> bool:
         '''
         Return True if the NNF is monotone.
-        Monotone NNF is positive has only one state for each variable.
+        Monotone NNF is positive iff it uses only one state for each variable.
         '''
         for var,setOfStates in self.iter_var_and_states().items():
             if len(setOfStates) != 1: return False # Must only have one state
@@ -70,21 +48,6 @@ class NNF:
                 if t[1] is True: return False 
         return True
 
-    def or_decomposable(self) -> bool:
-
-        def _or_decomposable(formula:'NNF') -> bool:
-            if isinstance(formula,Var):
-                return True
-            elif isinstance(formula,AND):
-                return all(_or_decomposable(sub) for sub in formula.subs)
-            else:# OR case
-                if len(formula.subs) == 0: return True
-                for sub in formula.subs:
-                    if sub.iter_var_and_states().keys() != formula.subs[0].iter_var_and_states().keys():
-                        return False
-                return all(_or_decomposable(sub) for sub in formula.subs)
-
-        return _or_decomposable(self)
 
 class Var(NNF):
     def __init__(self,name:str,state:int) -> None:
@@ -109,6 +72,36 @@ class Var(NNF):
         var.negated = neg
         return var
 
+    def __mul__(self,RHS:NNF) -> 'AND': #AND
+        if isinstance(RHS,AND):
+            return AND((self,*RHS.subs))
+        else:
+            return AND((self,RHS))
+
+    def __add__(self,RHS:'NNF') -> 'OR': #OR
+        if isinstance(RHS,OR):
+            return OR((self,*RHS.subs))
+        else:
+            return OR((self,RHS))
+
+    def _satisfied_by(self,world:dict[str,int]) -> bool:
+        name, state, negated = self.name, self.state, self.negated
+        if name not in world:
+            raise ValueError("The world has different set of variables than the NNF")
+        else:
+            characteristic:int = world[name]
+            if not negated and characteristic == state:
+                return True
+            elif negated and characteristic != state:
+                return True
+            else:
+                return False
+
+    def _iter_var_and_states(self,dictionary:dict) -> None:
+        dictionary[self.name].add((self.state,self.negated))
+
+    def _or_decomposable(self) -> bool:
+        return True
 
     def __hash__(self) -> int:
         return hash((self.name,self.state,self.negated))
@@ -119,11 +112,32 @@ class Var(NNF):
         return negVar
 
 class AND_OR(NNF):
-    pass
+    def _iter_var_and_states(self,dictionary:dict) -> None:
+        for sub in self.subs:
+            sub._iter_var_and_states(dictionary)
 
 class AND(AND_OR):
     def __init__(self,subs:t.Iterable) -> None:
         self.subs:NNF = subs
+
+    def __mul__(self,RHS:NNF) -> 'AND': #AND
+        if isinstance(RHS,AND):
+            return AND((*self.subs,*RHS.subs))
+        else:
+            return AND((*self.subs,RHS))
+
+    def __add__(self,RHS:'NNF') -> 'OR': #OR
+        if isinstance(RHS,OR):
+            return OR((self,*RHS.subs))
+        else:
+            return OR((self,RHS))
+
+    def _satisfied_by(self,world:dict[str,int]) -> bool:  
+        return all(sub._satisfied_by(world) for sub in self.subs)
+
+    def _or_decomposable(self) -> bool:
+        return all(sub._or_decomposable() for sub in self.subs)
+
 
     def __str__(self) -> str:
         if len(self.subs) == 0: return "True"
@@ -141,6 +155,28 @@ class AND(AND_OR):
 class OR(AND_OR):
     def __init__(self,subs:t.Iterable) -> None:
         self.subs:NNF = subs
+
+    def __mul__(self,RHS:NNF) -> 'AND': #AND
+        if isinstance(RHS,AND):
+            return AND((self,*RHS.subs))
+        else:
+            return AND((self,RHS))
+    
+    def __add__(self,RHS:'NNF') -> 'OR': #OR
+        if isinstance(RHS,OR):
+            return OR((*self.subs,*RHS.subs))
+        else:
+            return OR((*self.subs,RHS))
+
+    def _satisfied_by(self,world:dict[str,int]) -> bool:
+        return any(sub._satisfied_by(world) for sub in self.subs)
+
+    def _or_decomposable(self) -> bool:
+        if len(self.subs) == 0: return True
+        for sub in self.subs[1:]:
+            if not set(sub.iter_var_and_states().keys()).isdisjoint(set(self.subs[0].iter_var_and_states().keys())):
+                return False
+        return all(sub._or_decomposable() for sub in self.subs)
 
     def __hash__(self) -> int:
         return hash(('OR',self.subs))
