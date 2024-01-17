@@ -47,6 +47,69 @@ class NNF:
             for t in setOfStates: # Must be positive
                 if t[1] is True: return False 
         return True
+    
+    
+    operators = {'+','*'}
+    @classmethod
+    def from_string(cls,s:str):
+        # print(f"The string is {s}")
+        sStripped = s.strip("()")
+        if "(" not in sStripped and ")" not in sStripped:
+            if "+" in sStripped and "*" not in sStripped:
+                return OR.from_string(sStripped)
+            elif "*" in sStripped and "+" not in sStripped:
+                return AND.from_string(sStripped)
+            elif "*" not in sStripped and "+" not in sStripped:
+                return Var.from_string(sStripped)
+            else:
+                raise ValueError
+        subs = [] 
+        stk = []
+        curr = ""
+        op = []
+        for i,char in enumerate(s):
+            if char == " ":
+                continue
+            elif char == "(":
+                if i == 0:
+                    stk.append("$")
+                else:
+                    stk.append('#')
+                # if i != 0:
+                curr += char
+            elif char == ")":
+                if len(stk) == 0:
+                    raise ValueError
+                else:
+                    curr += char
+                    placeHolder = stk.pop()
+                    if len(stk) == 0:
+                        if placeHolder == "$" and i == len(s)-1:
+                            subs.append(curr[1:-1])
+                            curr = ""
+                        else:
+                            subs.append(curr)
+                            curr = "" 
+                    # else:
+                    #     curr += char               
+            elif char in cls.operators:
+                if len(stk) == 0:
+                    op.append(char)
+                    if len(curr) != 0:
+                        subs.append(curr)
+                        curr = ""
+                else:
+                    curr += char
+            else: 
+                curr += char
+        if len(curr) != 0: subs.append(curr)
+        if all(x == '+' for x in op):
+            return OR(subs=[cls.from_string(sub) for sub in subs])
+        elif all(x == '*' for x in op):
+            return AND(subs=[cls.from_string(sub) for sub in subs])
+        else:
+            raise ValueError
+
 
 
 class Var(NNF):
@@ -147,6 +210,11 @@ class AND(AND_OR):
             s += "*" + x
         return "(" + s + ")"
 
+    @classmethod
+    def from_string(cls,s:str):
+        subs = s.split("*")
+        return cls(subs=[Var.from_string(sub) for sub in subs])
+
     
     def __hash__(self) -> int:
         return hash(('AND',self.subs))
@@ -188,6 +256,11 @@ class OR(AND_OR):
         for x in subStrs[1:]:
             s += "+" + x
         return "(" + s + ")"
+    
+    @classmethod
+    def from_string(cls,s:str):
+        subs = s.split("+")
+        return cls(subs=[Var.from_string(sub) for sub in subs])
 
 TRUE = AND(())
 FALSE = OR(())
