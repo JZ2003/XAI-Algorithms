@@ -1,12 +1,15 @@
 import typing as t
 from collections import defaultdict 
 
+
+"""
+NOTE: A bug need to be solved: satified_by() function. 
+Short-circuit of the any() function will preventit from raising errors.
+"""
+
 class NNF:
     def __init__(self) -> None:
         ...
-
-    # @classmethod
-    # def from_string(cls,encoded_str:str) -> 'NNF':
         
     def __mul__(self,RHS:'NNF') -> 'AND': #AND
         ...
@@ -75,7 +78,6 @@ class NNF:
                     stk.append("$")
                 else:
                     stk.append('#')
-                # if i != 0:
                 curr += char
             elif char == ")":
                 if len(stk) == 0:
@@ -89,9 +91,7 @@ class NNF:
                             curr = ""
                         else:
                             subs.append(curr)
-                            curr = "" 
-                    # else:
-                    #     curr += char               
+                            curr = ""             
             elif char in cls.operators:
                 if len(stk) == 0:
                     op.append(char)
