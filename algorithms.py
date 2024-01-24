@@ -25,7 +25,7 @@ def NR(formula:NNF) -> set[NNF]:
     def _NR(formula:NNF) -> set[frozenset[str]]:
         if not formula.monotone(): 
             raise ValueError('NR algorithm only works on monotone NNF')
-        if isinstance(formula, Var):
+        if isinstance(formula, Lit):
             NRs = {frozenset([str(formula)])}
         elif isinstance(formula, AND):
             NRs = set().union(*[_NR(sub) for sub in formula.subs])
@@ -37,7 +37,7 @@ def NR(formula:NNF) -> set[NNF]:
         return NRs
 
     NRs = _NR(formula)
-    NRs = {OR(subs=tuple(Var.from_string(s) for s in x)) for x in NRs}
+    NRs = {OR(subs=tuple(Lit.from_string(s) for s in x)) for x in NRs}
     return NRs
 
 def SR(formula:NNF) -> set[NNF]:
@@ -47,7 +47,7 @@ def SR(formula:NNF) -> set[NNF]:
     def _SR(formula:NNF) -> set[frozenset[str]]:
         if not formula.monotone(): 
             raise ValueError('NR algorithm only works on monotone NNF')
-        if isinstance(formula, Var):
+        if isinstance(formula, Lit):
             SRs = {frozenset([str(formula)])}
         elif isinstance(formula, OR):
             SRs = set().union(*[_SR(sub) for sub in formula.subs])
@@ -59,5 +59,5 @@ def SR(formula:NNF) -> set[NNF]:
         return SRs
 
     SRs = _SR(formula)
-    SRs = {AND(subs=tuple(Var.from_string(s) for s in x)) for x in SRs}
+    SRs = {AND(subs=tuple(Lit.from_string(s) for s in x)) for x in SRs}
     return SRs

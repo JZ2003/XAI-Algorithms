@@ -4,7 +4,7 @@ from collections import defaultdict
 
 """
 NOTE: A bug need to be solved: satified_by() function. 
-Short-circuit of the any() function will preventit from raising errors.
+Short-circuit of the any() function will prevent it from raising errors.
 """
 
 class NNF:
@@ -24,10 +24,10 @@ class NNF:
         '''
         return self._satisfied_by(world)
 
-    def iter_var_and_states(self) -> dict[str, set[tuple[int,bool]]]:
+    def iter_var_and_states(self) -> dict[str, set[int]]:
         '''
         Return a dictionary that lists all the variables and states that occur 
-        in a NNF. dict[varName:(state,negated)]
+        in a NNF. dict[varName:set[states]]
         '''
         dictionary = defaultdict(set)
         self._iter_var_and_states(dictionary)
@@ -41,99 +41,129 @@ class NNF:
         return self._or_decomposable()
 
     def monotone(self) -> bool:
-        '''
-        Return True if the NNF is monotone.
-        Monotone NNF is positive iff it uses only one state for each variable.
-        '''
-        for var,setOfStates in self.iter_var_and_states().items():
-            if len(setOfStates) != 1: return False # Must only have one state
-            for t in setOfStates: # Must be positive
-                if t[1] is True: return False 
+        # '''
+        # Return True if the NNF is monotone.
+        # Monotone NNF is positive iff it uses only one state for each variable.
+        # '''
+        """
+        A NNF is monotone iff for each Variable X, All X-literals are simple and the same.
+        """
+        # for Lit,setOfStates in self.iter_var_and_states().items():
+        #     if len(setOfStates) != 1: return False # Must only have one state
+        #     for t in setOfStates: # Must be positive
+        #         if t[1] is True: return False 
+        # return True
+        for var, states in self.iter_var_and_states().items():
+            if len(states) > 1: 
+                return False
         return True
+
     
     
-    operators = {'+','*'}
-    @classmethod
-    def from_string(cls,s:str):
-        # print(f"The string is {s}")
-        sStripped = s.strip("()")
-        if "(" not in sStripped and ")" not in sStripped:
-            if "+" in sStripped and "*" not in sStripped:
-                return OR.from_string(sStripped)
-            elif "*" in sStripped and "+" not in sStripped:
-                return AND.from_string(sStripped)
-            elif "*" not in sStripped and "+" not in sStripped:
-                return Var.from_string(sStripped)
-            else:
-                raise ValueError
-        subs = [] 
-        stk = []
-        curr = ""
-        op = []
-        for i,char in enumerate(s):
-            if char == " ":
-                continue
-            elif char == "(":
-                if i == 0:
-                    stk.append("$")
-                else:
-                    stk.append('#')
-                curr += char
-            elif char == ")":
-                if len(stk) == 0:
-                    raise ValueError
-                else:
-                    curr += char
-                    placeHolder = stk.pop()
-                    if len(stk) == 0:
-                        if placeHolder == "$" and i == len(s)-1:
-                            subs.append(curr[1:-1])
-                            curr = ""
-                        else:
-                            subs.append(curr)
-                            curr = ""             
-            elif char in cls.operators:
-                if len(stk) == 0:
-                    op.append(char)
-                    if len(curr) != 0:
-                        subs.append(curr)
-                        curr = ""
-                else:
-                    curr += char
-            else: 
-                curr += char
-        if len(curr) != 0: subs.append(curr)
-        if all(x == '+' for x in op):
-            return OR(subs=[cls.from_string(sub) for sub in subs])
-        elif all(x == '*' for x in op):
-            return AND(subs=[cls.from_string(sub) for sub in subs])
-        else:
-            raise ValueError
+    # operators = {'+','*'}
+    # @classmethod
+    # def from_string(cls,s:str):
+    #     # print(f"The string is {s}")
+    #     sStripped = s.strip("()")
+    #     if "(" not in sStripped and ")" not in sStripped:
+    #         if "+" in sStripped and "*" not in sStripped:
+    #             return OR.from_string(sStripped)
+    #         elif "*" in sStripped and "+" not in sStripped:
+    #             return AND.from_string(sStripped)
+    #         elif "*" not in sStripped and "+" not in sStripped:
+    #             return Lit.from_string(sStripped)
+    #         else:
+    #             raise ValueError
+    #     subs = [] 
+    #     stk = []
+    #     curr = ""
+    #     op = []
+    #     for i,char in enumerate(s):
+    #         if char == " ":
+    #             continue
+    #         elif char == "(":
+    #             if i == 0:
+    #                 stk.append("$")
+    #             else:
+    #                 stk.append('#')
+    #             curr += char
+    #         elif char == ")":
+    #             if len(stk) == 0:
+    #                 raise ValueError
+    #             else:
+    #                 curr += char
+    #                 placeHolder = stk.pop()
+    #                 if len(stk) == 0:
+    #                     if placeHolder == "$" and i == len(s)-1:
+    #                         subs.append(curr[1:-1])
+    #                         curr = ""
+    #                     else:
+    #                         subs.append(curr)
+    #                         curr = ""             
+    #         elif char in cls.operators:
+    #             if len(stk) == 0:
+    #                 op.append(char)
+    #                 if len(curr) != 0:
+    #                     subs.append(curr)
+    #                     curr = ""
+    #             else:
+    #                 curr += char
+    #         else: 
+    #             curr += char
+    #     if len(curr) != 0: subs.append(curr)
+    #     if all(x == '+' for x in op):
+    #         return OR(subs=[cls.from_string(sub) for sub in subs])
+    #     elif all(x == '*' for x in op):
+    #         return AND(subs=[cls.from_string(sub) for sub in subs])
+    #     else:
+    #         raise ValueError
 
 
 
-class Var(NNF):
-    def __init__(self,name:str,state:int) -> None:
+class Lit(NNF):
+    def __init__(self,name:str,states:t.Iterable[int]) -> None:
         self.name = name
-        self.state = state
-        self.negated = False
+        self.states = frozenset(states)
+        # self.negated = False
     
     def __str__(self):
         """String representation for encoding."""
-        return f"{self.name}_{self.state}" if not self.negated else f"~{self.name}_{self.state}"
+        # return f"{self.name}_{self.state}" if not self.negated else f"~{self.name}_{self.state}"
+        stateStr = ""
+        for i,s in enumerate(self.states):
+            stateStr += str(s) 
+            if i != len(self.states)-1:
+                stateStr += ","
+        return f"{self.name}[{stateStr}]"
 
     @classmethod
     def from_string(cls, encoded_str):
-        """Create a Var instance from a string."""
-        if encoded_str[0] == '~':
-            name, state = encoded_str[1:].split('_')
-            neg = True
+        """Create a Lit instance from a string."""
+        # if encoded_str[0] == '~':
+        #     name, state = encoded_str[1:].split('_')
+        #     neg = True
+        # else:
+        #     name, state = encoded_str.split('_')
+        #     neg = False
+        # Lit = cls(name, int(state))
+        # Lit.negated = neg
+        # return Lit
+        start_bracket = encoded_str.find('[')
+        end_bracket = encoded_str.rfind(']')
+
+        if start_bracket != -1 and end_bracket != -1 and start_bracket < end_bracket:
+            nameStr = encoded_str[:start_bracket]
+            stateStr = encoded_str[start_bracket+1:end_bracket]
+            stateSet = set()
+            for num in stateStr.split(","):
+                try:
+                    stateSet.add(int(num))
+                except:
+                    raise ValueError
+            return cls(nameStr,stateSet)
         else:
-            name, state = encoded_str.split('_')
-            neg = False
-        var = cls(name, int(state))
-        var.negated = neg
-        return var
+            raise ValueError
+
 
     def __mul__(self,RHS:NNF) -> 'AND': #AND
         if isinstance(RHS,AND):
@@ -148,31 +178,34 @@ class Var(NNF):
             return OR((self,RHS))
 
     def _satisfied_by(self,world:dict[str,int]) -> bool:
-        name, state, negated = self.name, self.state, self.negated
+        # name, state, negated = self.name, self.state, self.negated
+        name, state = self.name, self.states
         if name not in world:
             raise ValueError("The world has different set of variables than the NNF")
         else:
             characteristic:int = world[name]
-            if not negated and characteristic == state:
-                return True
-            elif negated and characteristic != state:
-                return True
-            else:
-                return False
+            return characteristic in state
+            # if not negated and characteristic == state:
+            #     return True
+            # elif negated and characteristic != state:
+            #     return True
+            # else:
+            #     return False
 
     def _iter_var_and_states(self,dictionary:dict) -> None:
-        dictionary[self.name].add((self.state,self.negated))
+        # dictionary[self.name].add((self.state,self.negated))
+        dictionary[self.name] =  dictionary[self.name].union(self.states)
 
     def _or_decomposable(self) -> bool:
-        return True
+        return True #Emmmmmmmmm
 
     def __hash__(self) -> int:
-        return hash((self.name,self.state,self.negated))
+        return hash((self.name,self.states))
 
-    def __invert__(self) -> 'Var':
-        negVar = Var(self.name,self.state)
-        negVar.negated = not self.negated
-        return negVar
+    # def __invert__(self) -> 'Lit':
+    #     negVar = Lit(self.name,self.state)
+    #     negVar.negated = not self.negated
+    #     return negVar
 
 class AND_OR(NNF):
     def _iter_var_and_states(self,dictionary:dict) -> None:
@@ -213,7 +246,7 @@ class AND(AND_OR):
     @classmethod
     def from_string(cls,s:str):
         subs = s.split("*")
-        return cls(subs=[Var.from_string(sub) for sub in subs])
+        return cls(subs=[Lit.from_string(sub) for sub in subs])
 
     
     def __hash__(self) -> int:
@@ -260,7 +293,7 @@ class OR(AND_OR):
     @classmethod
     def from_string(cls,s:str):
         subs = s.split("+")
-        return cls(subs=[Var.from_string(sub) for sub in subs])
+        return cls(subs=[Lit.from_string(sub) for sub in subs])
 
 TRUE = AND(())
 FALSE = OR(())
