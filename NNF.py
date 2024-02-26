@@ -7,9 +7,16 @@ NOTE: A bug need to be solved: satified_by() function.
 Short-circuit of the any() function will prevent it from raising errors.
 """
 
+"""
+NOTE: Right now, functions like _simplify are not cached. Functions like them are pure 
+functions, so we can exploit this property and cache their results.
+"""
+
 class NNF:
     def __init__(self) -> None:
-        ...
+        self.clause = None
+        self.term = None
+        self.simplified = None
         
     def __mul__(self,RHS:'NNF') -> 'AND': #AND
         ...
@@ -41,90 +48,28 @@ class NNF:
         return self._or_decomposable()
 
     def monotone(self) -> bool:
-        # '''
-        # Return True if the NNF is monotone.
-        # Monotone NNF is positive iff it uses only one state for each variable.
-        # '''
         """
         A NNF is monotone iff for each Variable X, All X-literals are simple and the same.
         """
-        # for Lit,setOfStates in self.iter_var_and_states().items():
-        #     if len(setOfStates) != 1: return False # Must only have one state
-        #     for t in setOfStates: # Must be positive
-        #         if t[1] is True: return False 
-        # return True
         for var, states in self.iter_var_and_states().items():
             if len(states) > 1: 
                 return False
         return True
-
     
-    
-    # operators = {'+','*'}
-    # @classmethod
-    # def from_string(cls,s:str):
-    #     # print(f"The string is {s}")
-    #     sStripped = s.strip("()")
-    #     if "(" not in sStripped and ")" not in sStripped:
-    #         if "+" in sStripped and "*" not in sStripped:
-    #             return OR.from_string(sStripped)
-    #         elif "*" in sStripped and "+" not in sStripped:
-    #             return AND.from_string(sStripped)
-    #         elif "*" not in sStripped and "+" not in sStripped:
-    #             return Lit.from_string(sStripped)
-    #         else:
-    #             raise ValueError
-    #     subs = [] 
-    #     stk = []
-    #     curr = ""
-    #     op = []
-    #     for i,char in enumerate(s):
-    #         if char == " ":
-    #             continue
-    #         elif char == "(":
-    #             if i == 0:
-    #                 stk.append("$")
-    #             else:
-    #                 stk.append('#')
-    #             curr += char
-    #         elif char == ")":
-    #             if len(stk) == 0:
-    #                 raise ValueError
-    #             else:
-    #                 curr += char
-    #                 placeHolder = stk.pop()
-    #                 if len(stk) == 0:
-    #                     if placeHolder == "$" and i == len(s)-1:
-    #                         subs.append(curr[1:-1])
-    #                         curr = ""
-    #                     else:
-    #                         subs.append(curr)
-    #                         curr = ""             
-    #         elif char in cls.operators:
-    #             if len(stk) == 0:
-    #                 op.append(char)
-    #                 if len(curr) != 0:
-    #                     subs.append(curr)
-    #                     curr = ""
-    #             else:
-    #                 curr += char
-    #         else: 
-    #             curr += char
-    #     if len(curr) != 0: subs.append(curr)
-    #     if all(x == '+' for x in op):
-    #         return OR(subs=[cls.from_string(sub) for sub in subs])
-    #     elif all(x == '*' for x in op):
-    #         return AND(subs=[cls.from_string(sub) for sub in subs])
-    #     else:
-    #         raise ValueError
+    def is_clause(self) -> bool:
+        ...
 
+    def is_term(self) -> bool:
+        ...
 
 
 class Lit(NNF):
     def __init__(self,name:str,states:t.Iterable[int]) -> None:
         self.name = name
         self.states = frozenset(states)
-        # self.negated = False
+        self.clause = True
+        self.term = True
+        self.simplified = True
     
     def __str__(self):
         """String representation for encoding."""
@@ -139,15 +84,6 @@ class Lit(NNF):
     @classmethod
     def from_string(cls, encoded_str):
         """Create a Lit instance from a string."""
-        # if encoded_str[0] == '~':
-        #     name, state = encoded_str[1:].split('_')
-        #     neg = True
-        # else:
-        #     name, state = encoded_str.split('_')
-        #     neg = False
-        # Lit = cls(name, int(state))
-        # Lit.negated = neg
-        # return Lit
         start_bracket = encoded_str.find('[')
         end_bracket = encoded_str.rfind(']')
 
@@ -202,31 +138,63 @@ class Lit(NNF):
     def __hash__(self) -> int:
         return hash((self.name,self.states))
 
-    # def __invert__(self) -> 'Lit':
-    #     negVar = Lit(self.name,self.state)
-    #     negVar.negated = not self.negated
-    #     return negVar
+    def is_clause(self) -> bool:
+        return True
+    
+    def is_term(self) -> bool:
+        return True
+
 
 class AND_OR(NNF):
     def _iter_var_and_states(self,dictionary:dict) -> None:
         for sub in self.subs:
             sub._iter_var_and_states(dictionary)
+    def subsume(self,RHS:NNF) -> bool:
+        ...
 
 class AND(AND_OR):
     def __init__(self,subs:t.Iterable) -> None:
         self.subs:NNF = subs
+        self._simplify()
 
+    def _simplify(self) -> None:
+        if not self.simplified:
+            newSubs = []
+            for sub in self.subs:
+                if isinstance(sub,AND):
+                    for ss in sub.subs: 
+                        ss._simplify()
+                    newSubs.extend(sub.subs)
+                else:
+                    sub._simplify()
+                    newSubs.append(sub)
+            self.subs = newSubs      
+        self.simplified = True
+        
     def __mul__(self,RHS:NNF) -> 'AND': #AND
         if isinstance(RHS,AND):
-            return AND((*self.subs,*RHS.subs))
+            newNode = AND([*self.subs,*RHS.subs])
+            if self.is_term() and RHS.is_term():
+                newNode.term = True
+            newNode.clause = False
+            return newNode
         else:
-            return AND((*self.subs,RHS))
+            newNode = AND([*self.subs,RHS])
+            newNode.term = False
+            newNode.clause = False
+            return newNode
 
     def __add__(self,RHS:'NNF') -> 'OR': #OR
         if isinstance(RHS,OR):
-            return OR((self,*RHS.subs))
+            newNode = OR([self,*RHS.subs])
+            newNode.clause = False
+            newNode.term = False
+            return newNode
         else:
-            return OR((self,RHS))
+            newNode = OR([self,RHS])
+            newNode.clause = False
+            newNode.term = False
+            return newNode
 
     def _satisfied_by(self,world:dict[str,int]) -> bool:  
         return all(sub._satisfied_by(world) for sub in self.subs)
@@ -251,23 +219,67 @@ class AND(AND_OR):
     
     def __hash__(self) -> int:
         return hash(('AND',self.subs))
+    
+    def is_clause(self) -> bool:
+        return False
 
+    def is_term(self) -> bool:
+        if self.term is None:
+            term = all(isinstance(s,Lit) for s in self.subs)
+            self.term = term
+        return self.term
+    
+    def subsume(self,RHS) ->bool:
+        if self.is_term() and RHS.is_term():
+            pass
+        else:
+            raise ValueError("Only terms have subsumption relationship")
+        
 
 class OR(AND_OR):
     def __init__(self,subs:t.Iterable) -> None:
         self.subs:NNF = subs
+        self._simplify()
+    
+    def _simplify(self) -> None:
+        if not self.simplified:
+            newSubs = []
+            for sub in self.subs:
+                if isinstance(sub,OR):
+                    for ss in sub.subs: 
+                        ss._simplify()
+                    newSubs.extend(sub.subs)
+                else:
+                    sub._simplify()
+                    newSubs.append(sub)
+            self.subs = newSubs      
+        self.simplified = True
+
 
     def __mul__(self,RHS:NNF) -> 'AND': #AND
         if isinstance(RHS,AND):
-            return AND((self,*RHS.subs))
+            newNode = AND([self,*RHS.subs])
+            newNode.clause = False
+            newNode.term = False
+            return newNode
         else:
-            return AND((self,RHS))
+            newNode = AND([self,RHS])
+            newNode.term = False
+            newNode.clause = False
+            return newNode
     
     def __add__(self,RHS:'NNF') -> 'OR': #OR
         if isinstance(RHS,OR):
-            return OR((*self.subs,*RHS.subs))
+            newNode = OR([*self.subs,*RHS.subs])
+            if self.is_clause() and RHS.is_clause():
+                newNode.clause = True
+            newNode.term = False
+            return newNode
         else:
-            return OR((*self.subs,RHS))
+            newNode = OR([*self.subs,RHS])
+            newNode.term = False
+            RHS.term = False
+            return newNode
 
     def _satisfied_by(self,world:dict[str,int]) -> bool:
         return any(sub._satisfied_by(world) for sub in self.subs)
@@ -295,7 +307,82 @@ class OR(AND_OR):
         subs = s.split("+")
         return cls(subs=[Lit.from_string(sub) for sub in subs])
 
-TRUE = AND(())
-FALSE = OR(())
+    def is_clause(self) -> bool:
+        if self.clause is None:
+            clause = all(isinstance(s,Lit) for s in self.subs)
+            self.clause = clause
+        return self.clause
+
+
+class Term(AND):
+    def __init__(self,subs:Lit,correctness_check=False):
+        self.simplified = True
+        self.subs = subs
+        if correctness_check:
+            self._correctness_check()
+        self.subsDict = {sub.name:sub.states for sub in self.subs}
+    
+    def _correctness_check(self):
+        subs = self.subs
+        for sub in subs:
+            if not isinstance(sub,Lit):
+                ValueError("Terms only consists of literals (Lit)")
+        variables = [sub.name for sub in subs]
+        if len(variables) != len(set(variables)):
+            raise ValueError("Each elements in a term must be from a distinct variable")
+    
+
+    def subsume(self,RHS:'Term') ->bool:
+        if isinstance(RHS,Term):
+            for varName,states in self.subsDict.items():
+                if varName not in RHS.subsDict: #If X-literal doesn't exist in RHS, it's \top
+                    return False
+                else:
+                    statesRHS = RHS.subsDict[varName]
+                    if not statesRHS.issubset(states): 
+                        return False #Every X-literal of RHS needs to be a subset
+            return True
+        else:
+            raise ValueError("Only two terms can have subsumption relationship")
+ 
+
+class Clause(OR):
+    def __init__(self,subs:Lit,correctness_check=True):
+        self.simplified = True
+        self.subs = subs
+        if correctness_check:
+            self._correctness_check()
+        self.subsDict = {sub.name:sub.states for sub in self.subs}
+    
+    def _correctness_check(self):
+        subs = self.subs
+        for sub in subs:
+            if not isinstance(sub,Lit):
+                ValueError("Clauses only consists of literals (Lit)")
+        variables = [sub.name for sub in subs]
+        if len(variables) != len(set(variables)):
+            raise ValueError("Each elements in a clause must be from a distinct variable")
+
+
+    def subsume(self,RHS) ->bool:
+        if isinstance(RHS,Clause):
+            for varName,states in self.subsDict.items():
+                if varName not in RHS.subsDict: #If X-literal doesn't exist in RHS, it's \bot
+                    return False
+                else:
+                    statesRHS = RHS.subsDict[varName]
+                    if not states.issubset(statesRHS): 
+                        return False #Every X-literal of RHS needs to be a superset
+            return True
+        else:
+            raise ValueError("Only two clauses can have subsumption relationship")
+
+
+
+
+
+
+TRUE = AND([])
+FALSE = OR([])
 
 
