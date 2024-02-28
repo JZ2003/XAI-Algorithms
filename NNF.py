@@ -61,6 +61,8 @@ class NNF:
                 return False
         return True
     
+    
+    
 
 
 class Lit(NNF):
