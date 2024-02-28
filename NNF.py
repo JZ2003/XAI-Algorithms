@@ -12,6 +12,9 @@ NOTE: Right now, functions like _simplify are not cached. Functions like them ar
 functions, so we can exploit this property and cache their results.
 """
 
+AUTO_SIMPLIFY = False
+
+
 class NNF:
     def __init__(self) -> None:
         self.simplified = None
@@ -37,6 +40,15 @@ class NNF:
         dictionary = defaultdict(set)
         self._iter_var_and_states(dictionary)
         return dictionary
+    
+    def iter_literals(self) -> dict[str, 'Lit']:
+        '''
+        Return a dictionary that lists all the variables and its literals that occur 
+        in a NNF. 
+        '''
+        dictionary = defaultdict(set)
+        self._iter_literals(dictionary)
+        return dictionary
 
     def or_decomposable(self) -> bool:
         '''
@@ -61,9 +73,14 @@ class NNF:
                 return False
         return True
     
+    def simple_disjunct(self) -> bool:
+        """
+        Property proposed in Proposition 14 of the Paper 'A New Class of Explanations for classifiers with non-binary features"
+        It assumes all disjuncts must only involve two nodes and has the form l + \Delta, where l is a X-literal and all X-literals
+        in \Delta are strictly implied by l (be not the same as l and implied by l). 
+        """
+        return self._simple_disjunct()
     
-    
-
 
 class Lit(NNF):
     def __init__(self,name:str,states:t.Iterable[int]) -> None:
@@ -128,11 +145,17 @@ class Lit(NNF):
     def _iter_var_and_states(self,dictionary:dict) -> None:
         # dictionary[self.name].add((self.state,self.negated))
         dictionary[self.name] =  dictionary[self.name].union(self.states)
+    
+    def _iter_literals(self,dictionary:dict) -> None:
+        dictionary[self.name].add(self)
 
     def _or_decomposable(self) -> bool:
         return True #Emmmmmmmmm
     
     def _and_decomposable(self) -> bool:
+        return True
+    
+    def _simple_disjunct(self) -> bool:
         return True
 
     def __hash__(self) -> int:
@@ -147,12 +170,17 @@ class AND_OR(NNF):
         for sub in self.subs:
             sub._iter_var_and_states(dictionary)
     
+    def _iter_literals(self,dictionary:dict) -> None:
+        for sub in self.subs:
+            sub._iter_literals(dictionary)
+    
 
 class AND(AND_OR):
     def __init__(self,subs:t.Iterable) -> None:
         super().__init__()
         self.subs:NNF = subs
-        self._simplify()
+        if AUTO_SIMPLIFY:
+            self._simplify()
 
     def _simplify(self) -> None:
         if not self.simplified:
@@ -197,6 +225,9 @@ class AND(AND_OR):
         if len(combinedSet) != sizeSumIndividuals:
             return False
         return all(sub._and_decomposable() for sub in self.subs)
+    
+    def _simple_disjunct(self) -> bool:
+        return all(sub._simple_disjunct() for sub in self.subs)
 
     def __str__(self) -> str:
         if len(self.subs) == 0: return "True"
@@ -228,7 +259,8 @@ class OR(AND_OR):
     def __init__(self,subs:t.Iterable) -> None:
         super().__init__()
         self.subs:NNF = subs
-        self._simplify()
+        if AUTO_SIMPLIFY:
+            self._simplify()
     
     def _simplify(self) -> None:
         if not self.simplified:
@@ -273,6 +305,31 @@ class OR(AND_OR):
             return False
         return all(sub._or_decomposable() for sub in self.subs)
     
+    def _simple_disjunct(self) -> bool:
+        if len(self.subs) != 2:
+            return False
+        sub1, sub2 = self.subs
+        if isinstance(sub1,Lit) and isinstance(sub2,Lit):
+            if sub1.name != sub2.name: 
+                return True
+            else:
+                if sub1.states == sub2.states: 
+                    return False
+                if sub1.states.issubset(sub2.states): 
+                    return True
+                else: 
+                    return sub2.states.issubset(sub1.states)
+        elif not isinstance(sub1,Lit) and not isinstance(sub2,Lit):
+            return False
+        else:
+            l, Delta = (sub1, sub2) if isinstance(sub1,Lit) else (sub2, sub1)
+            varL,statesL = l.name, l.states
+            literals = Delta.iter_literals()[varL]
+            for lit in literals:
+                if not statesL.issubset(lit.states) or lit.states == statesL:
+                    return False
+            return Delta._simple_disjunct()
+
     def _and_decomposable(self) -> bool:
         return all(sub._and_decomposable() for sub in self.subs)
 

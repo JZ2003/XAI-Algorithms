@@ -1,6 +1,7 @@
 from NNF import *
 from TermAndClause import *
 from itertools import product
+from collections import Counter
 
 
 def remove_subsumed(elements: set[HashDict], subsume_func) -> set[HashDict]:
@@ -30,3 +31,24 @@ def cartesian_product(list_elements: list[set[HashDict]], append_func) -> set[Ha
     res = set(append_func(combination) for combination in combinations)
     return res
 
+def all_ivars(subs:list[NNF],ivars_parent:set[str]) -> list[set[str]]:
+    subVars = [set(sub.iter_var_and_states().keys()) for sub in subs]
+    allVars = [var for s in subVars for var in s]
+    varCounter = Counter(allVars)
+    uniqueVars = [{var for var in s if varCounter[var] == 1} for s in subVars]
+    
+    res = [s & ivars_parent for s in uniqueVars]
+    return res
+
+def prune(elements: set[HashDict],ivars=set[str]) -> set[HashDict]:
+    elements = list(elements)
+    vars = [set(element.keys()) for element in elements]
+    prunedOutIndices = set()
+    length = len(elements)
+    for i in range(length):
+        for j in range(length):
+            if i != j and vars[i].issubset(vars[j]):
+                setMinus = vars[j] - vars[i]
+                if setMinus & ivars:
+                    prunedOutIndices.add(j)
+    return set(element for i, element in enumerate(elements) if i not in prunedOutIndices)

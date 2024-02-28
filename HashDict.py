@@ -63,3 +63,7 @@ class HashDict:
 
     def items(self):
         return self._data.items()
+
+    def keys(self):
+        return self._data.keys()
+    

@@ -2,6 +2,8 @@ from collections import defaultdict
 from HashDict import HashDict 
 from functools import reduce
 
+TERMFALSE = 42
+
 def term_subsume(LHS:HashDict,RHS:HashDict) -> bool:
     """
     Return True if the LHS term subsumes the RHS term
@@ -24,7 +26,14 @@ def terms_appended(terms:tuple[HashDict]) -> HashDict:
     for term in terms:
         for varName, states in term.items():
             appended[varName].append(states)
-    res = HashDict({varName: reduce(frozenset.intersection, sets) for varName, sets in appended.items()})
+    res = HashDict()
+    for varName, sets in appended.items():
+        states = reduce(frozenset.intersection, sets)
+        if len(states) != 0:
+            res[varName] = states
+        else:
+            return TERMFALSE
+    # res = HashDict({varName: reduce(frozenset.intersection, sets) for varName, sets in appended.items()})
     return res
 
 def clause_subsume(LHS:HashDict,RHS:HashDict) ->bool:
