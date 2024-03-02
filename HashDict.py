@@ -54,12 +54,14 @@ class HashDict:
         dicStr = []
         for key,val in self._data.items():
             if isinstance(val,frozenset):
-                valStr = f"({', '.join(map(str, sorted(val)))})"
+                valStr = f"({','.join(map(str, sorted(val)))})"
             else:
                 valStr = str(val)
             dicStr.append(str(key)+valStr)
         dicStr = ', '.join(dicStr)
         return f"HD:({dicStr})"
+
+
 
     def items(self):
         return self._data.items()
@@ -67,3 +69,63 @@ class HashDict:
     def keys(self):
         return self._data.keys()
     
+
+class Term(HashDict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def __repr__(self):
+        dicStr = []
+        if len((self._data)) == 0:
+            return "True"
+        for key,val in self._data.items():
+            if isinstance(val,frozenset):
+                valStr = f"({','.join(map(str, sorted(val)))})"
+            else:
+                valStr = str(val)
+            dicStr.append(str(key)+valStr)
+        dicStr = '*'.join(dicStr)
+        return dicStr
+    
+    def latex_view(self) -> str:
+        if len((self._data)) == 0:
+            return "\\text{True}"
+        res = ""
+        for key,val in self._data.items():
+            if isinstance(val,frozenset):
+                val = [s if len(s) == 1 else "[" + s + "]" for s in map(str, sorted(val)) ]
+                stateStr = ''.join(val)
+                res += f"{key}_" + f"{{" + f"{stateStr}" + f"}}"
+            else:
+                raise ValueError("No Latex View!")
+        return res
+
+class Clause(HashDict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
+    def __repr__(self):
+        dicStr = []
+        if len((self._data)) == 0:
+            return "False"
+        for key,val in self._data.items():
+            if isinstance(val,frozenset):
+                valStr = f"({','.join(map(str, sorted(val)))})"
+            else:
+                valStr = str(val)
+            dicStr.append(str(key)+valStr)
+        dicStr = '+'.join(dicStr)
+        return dicStr
+
+    def latex_view(self) -> str:
+        if len((self._data)) == 0:
+            return "\\text{False}"
+        res = ""
+        for i,(key,val) in enumerate(self._data.items()):
+            if isinstance(val,frozenset):
+                val = [s if len(s) == 1 else "[" + s + "]" for s in map(str, sorted(val)) ]
+                stateStr = ''.join(val)
+                res += f"{key}_" + f"{{" + f"{stateStr}" + f"}}" if i == 0 else f"+{key}_" + f"{{" + f"{stateStr}" + f"}}"
+            else:
+                raise ValueError("No Latex View!")
+        return res

@@ -24,6 +24,10 @@ class NNF:
 
     def __add__(self,RHS:'NNF') -> 'OR': #OR
         ...
+    
+    def latex_view(self) -> str:
+        "The latex representation string"
+        return self._latex_view(level=0)
 
     def satisfied_by(self, world:dict[str,int]) -> bool:
         '''
@@ -100,6 +104,18 @@ class Lit(NNF):
             if i != len(self.states)-1:
                 stateStr += ","
         return f"{self.name}[{stateStr}]"
+    
+    def _latex_view(self,level:int) -> str:
+        stateStr = f"{self.name}_{{"
+        states = sorted(self.states)
+        for s in states:
+            if s // 10 == 0:
+                stateStr += str(s)
+            else:
+                stateStr += "[" + str(s) + "]"
+        stateStr += f"}}"
+        return stateStr
+        
 
     @classmethod
     def from_string(cls, encoded_str):
@@ -160,7 +176,11 @@ class Lit(NNF):
 
     def __hash__(self) -> int:
         return hash((self.name,self.states))
-    
+
+    def __eq__(self, __o: object) -> bool:
+        if not isinstance(__o, Lit):
+            return NotImplemented
+        return (self.name,self.states) == (__o.name,__o.states)
 
 class AND_OR(NNF):
     def __init__(self) -> None:
@@ -236,6 +256,17 @@ class AND(AND_OR):
         for x in subStrs[1:]:
             s += "*" + x
         return "(" + s + ")"
+    
+    def _latex_view(self,level:int) -> str:
+        if len(self.subs) == 0: return "\\text{True}"
+        subLatex = [s._latex_view(level=level+1) for s in self.subs]
+        s = subLatex[0]
+        for x in subLatex[1:]:
+            s += x
+        if level != 0:
+            return "(" + s + ")"
+        else:
+            return s
 
     @classmethod
     def from_string(cls,s:str):
@@ -244,7 +275,14 @@ class AND(AND_OR):
 
     
     def __hash__(self) -> int:
-        return hash(('AND',self.subs))
+        subs = frozenset(self.subs)
+        return hash(('AND',subs))
+
+    def __eq__(self, __o: object) -> bool:
+        if not isinstance(__o,AND):
+            return NotImplemented
+        return frozenset(self.subs) == frozenset(__o.subs)
+            
     
     def is_clause(self) -> bool:
         return False
@@ -306,6 +344,8 @@ class OR(AND_OR):
         return all(sub._or_decomposable() for sub in self.subs)
     
     def _simple_disjunct(self) -> bool:
+        if len(self.subs) == 0:
+            return True
         if len(self.subs) != 2:
             return False
         sub1, sub2 = self.subs
@@ -334,7 +374,13 @@ class OR(AND_OR):
         return all(sub._and_decomposable() for sub in self.subs)
 
     def __hash__(self) -> int:
-        return hash(('OR',self.subs))
+        subs = frozenset(self.subs)
+        return hash(('OR',subs))
+
+    def __eq__(self, __o: object) -> bool:
+        if not isinstance(__o,OR):
+            return NotImplemented
+        return frozenset(self.subs) == frozenset(__o.subs)
 
     def __str__(self) -> str:
         if len(self.subs) == 0: return "False"
@@ -343,6 +389,17 @@ class OR(AND_OR):
         for x in subStrs[1:]:
             s += "+" + x
         return "(" + s + ")"
+
+    def _latex_view(self,level:int) -> str:
+        if len(self.subs) == 0: return "\\text{False}"
+        subLatex = [s._latex_view(level=level+1) for s in self.subs]
+        s = subLatex[0]
+        for x in subLatex[1:]:
+            s += "+" + x
+        if level != 0:
+            return "(" + s + ")"
+        else:
+            return s
     
     @classmethod
     def from_string(cls,s:str):

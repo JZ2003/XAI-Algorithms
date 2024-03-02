@@ -1,10 +1,9 @@
 from NNF import *
 import typing as t
 from algorithms_utils import *
+from functools import lru_cache
 
-Term = HashDict
-Clause = HashDict
-
+CACHE_SIZE = None
 
 def NR_monotone(formula:NNF,check_correctness=False,use_decomposability=True) -> set[Clause]:
     '''
@@ -14,6 +13,7 @@ def NR_monotone(formula:NNF,check_correctness=False,use_decomposability=True) ->
     if check_correctness:
         if not formula.monotone():
             raise ValueError('NR algorithm only works on monotone NNF')
+    @lru_cache(maxsize=CACHE_SIZE)
     def _NR(formula:NNF) -> set[Clause]:
         nonlocal use_decomposability
         if isinstance(formula, Lit):
@@ -38,7 +38,7 @@ def SR_monotone(formula:NNF,check_correctness=False,use_decomposability=True) ->
     if check_correctness:
         if not formula.monotone(): 
             raise ValueError('SR algorithm only works on monotone NNF')
-
+    @lru_cache(maxsize=CACHE_SIZE)
     def _SR(formula) -> set[Term]:
         nonlocal use_decomposability
         if isinstance(formula, Lit):
@@ -64,9 +64,13 @@ def GSR_SD(formula:NNF,check_correctness=False,use_decomposability=True,var_min=
     if check_correctness:
         if not formula.simple_disjunct(): 
             raise ValueError('GSR_SD algorithm only works on simple-disjunct NNF')
-
+    srCount = 0
+    
+    @lru_cache(maxsize=CACHE_SIZE)
     def _GSR_SD(formula,ivars) -> set[Term]:
         nonlocal use_decomposability
+        nonlocal srCount
+        srCount += 1
         if isinstance(formula, Lit):
             SRs = {Term({formula.name: formula.states})}
         elif isinstance(formula, OR):
@@ -82,9 +86,10 @@ def GSR_SD(formula:NNF,check_correctness=False,use_decomposability=True,var_min=
                 SRs = remove_subsumed(SRs,subsume_func=term_subsume)
         SRs = prune(SRs,ivars)
         return SRs
-
+    @lru_cache(maxsize=CACHE_SIZE)
     def _SR_SD(formula) -> set[Term]:
-        nonlocal use_decomposability
+        nonlocal srCount
+        srCount += 1
         if isinstance(formula, Lit):
             SRs = {Term({formula.name: formula.states})}
         elif isinstance(formula, OR):
@@ -99,8 +104,8 @@ def GSR_SD(formula:NNF,check_correctness=False,use_decomposability=True,var_min=
         return SRs
     
     if var_min:
-        SRs = _GSR_SD(formula=formula,ivars=set(formula.iter_var_and_states().keys()))
+        SRs = _GSR_SD(formula=formula,ivars=frozenset(formula.iter_var_and_states().keys()))
     else:
         SRs = _SR_SD(formula=formula)
-    return SRs
+    return SRs,srCount
     

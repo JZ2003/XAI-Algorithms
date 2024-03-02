@@ -31,13 +31,13 @@ def cartesian_product(list_elements: list[set[HashDict]], append_func) -> set[Ha
     res = set(append_func(combination) for combination in combinations)
     return res
 
-def all_ivars(subs:list[NNF],ivars_parent:set[str]) -> list[set[str]]:
+def all_ivars(subs:list[NNF],ivars_parent:frozenset[str]) -> list[frozenset[str]]:
     subVars = [set(sub.iter_var_and_states().keys()) for sub in subs]
     allVars = [var for s in subVars for var in s]
     varCounter = Counter(allVars)
     uniqueVars = [{var for var in s if varCounter[var] == 1} for s in subVars]
     
-    res = [s & ivars_parent for s in uniqueVars]
+    res = [frozenset(s & ivars_parent) for s in uniqueVars]
     return res
 
 def prune(elements: set[HashDict],ivars=set[str]) -> set[HashDict]:

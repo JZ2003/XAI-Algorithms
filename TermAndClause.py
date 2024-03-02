@@ -1,10 +1,10 @@
 from collections import defaultdict
-from HashDict import HashDict 
+from HashDict import Term,Clause,HashDict
 from functools import reduce
 
 TERMFALSE = 42
 
-def term_subsume(LHS:HashDict,RHS:HashDict) -> bool:
+def term_subsume(LHS:Term,RHS:Term) -> bool:
     """
     Return True if the LHS term subsumes the RHS term
     (RHS implies LHS)
@@ -18,7 +18,7 @@ def term_subsume(LHS:HashDict,RHS:HashDict) -> bool:
                 return False #Every X-literal of RHS needs to be a subset of that in LHS
     return True
 
-def terms_appended(terms:tuple[HashDict]) -> HashDict:
+def terms_appended(terms:tuple[Term]) -> Term:
     """
     Given a tuple of terms, return a term that is the result of appending all terms.
     """
@@ -26,7 +26,7 @@ def terms_appended(terms:tuple[HashDict]) -> HashDict:
     for term in terms:
         for varName, states in term.items():
             appended[varName].append(states)
-    res = HashDict()
+    res = Term()
     for varName, sets in appended.items():
         states = reduce(frozenset.intersection, sets)
         if len(states) != 0:
@@ -36,7 +36,7 @@ def terms_appended(terms:tuple[HashDict]) -> HashDict:
     # res = HashDict({varName: reduce(frozenset.intersection, sets) for varName, sets in appended.items()})
     return res
 
-def clause_subsume(LHS:HashDict,RHS:HashDict) ->bool:
+def clause_subsume(LHS:Clause,RHS:Clause) ->bool:
     """
     Return True if the LHS clause subsumes the RHS clause
     (LHS implies RHS)
@@ -50,7 +50,7 @@ def clause_subsume(LHS:HashDict,RHS:HashDict) ->bool:
                 return False #Every X-literal of RHS needs to be a superset
     return True
 
-def clauses_appended(clauses:tuple[HashDict]) ->HashDict:
+def clauses_appended(clauses:tuple[Clause]) ->Clause:
     """
     Given a tuple of clauses, return a clause that is the result of appending all clauses.
     """
@@ -58,5 +58,5 @@ def clauses_appended(clauses:tuple[HashDict]) ->HashDict:
     for clause in clauses:
         for varName, states in clause.items():
             appended[varName].append(states)
-    res = HashDict({varName: reduce(frozenset.union, sets) for varName, sets in appended.items()})
+    res = Clause({varName: reduce(frozenset.union, sets) for varName, sets in appended.items()})
     return res
